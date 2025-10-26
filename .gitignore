@@ -1,0 +1,5 @@
+# Build
+/target
+validator-leptos/dist
+.idea
+.DS_Store
