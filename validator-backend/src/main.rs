@@ -1,13 +1,18 @@
 use validator::print_check;
-use validator::validators::validator::{Email, NotAllowedChars, Positive};
+use validator::validators::email_validator::Email;
+use validator::validators::not_allowed_chars::NotAllowedChars;
+use validator::validators::positive_number_validator::Positive;
 
 fn main() {
     let positive = Positive;
     let number_samples = [5, 0, -3, 42];
     for n in number_samples {
-        print_check(&positive, &n, |v| println!("{} is valid (greater than 0)", v), |v, e| {
-            println!("{} is invalid: {}", v, e)
-        });
+        print_check(
+            &positive,
+            &n,
+            |v| println!("{} is valid (greater than 0)", v),
+            |v, e| println!("{} is invalid: {}", v, e),
+        );
     }
 
     let email = Email;
@@ -27,7 +32,7 @@ fn main() {
             &email,
             s,
             |v| println!("'{}' is a valid email", v),
-            |v, e| { println!("'{}' is an invalid email: {}", v, e) }
+            |v, e| println!("'{}' is an invalid email: {}", v, e),
         );
 
         print_check(

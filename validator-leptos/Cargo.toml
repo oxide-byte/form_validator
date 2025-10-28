@@ -5,5 +5,5 @@ edition = "2024"
 license = "MIT"
 
 [dependencies]
-leptos = { version = "0.8", features = ["csr"] }
+leptos = { version = "0.8.12", features = ["csr"] }
 validator = { path = "../validator" }

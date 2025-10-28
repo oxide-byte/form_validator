@@ -1,13 +1,22 @@
 use leptos::html::*;
 use leptos::prelude::*;
-use validator::validators::validator::{Email, Validator};
+use validator::validators::email_validator::Email;
+use validator::validators::validator::Validator;
+
+#[component]
+pub fn FormError(error: ReadSignal<String>) -> impl IntoView {
+    view! {
+        <Show when=move || !error.get().is_empty() fallback=|| ()>
+            <p role="alert" class="text-red-600 text-sm mt-1">{ error }</p>
+        </Show>
+    }
+}
 
 #[component]
 pub fn SimpleForm() -> impl IntoView {
-
     let (name, set_name) = signal("Unknown".to_string());
 
-    let (email, set_email) = signal(String::new());
+    let (_email, set_email) = signal(String::new());
     let (email_error, set_email_error) = signal(String::new());
 
     let email_validator = Email;
@@ -16,7 +25,6 @@ pub fn SimpleForm() -> impl IntoView {
         <div class="p-4 space-y-4">
             <h1 class="text-4xl"> Controlled </h1>
             <h2 class="text-2xl">Hello {name}</h2>
-
             <p>
                 Enter your name:
                 <input
@@ -40,16 +48,11 @@ pub fn SimpleForm() -> impl IntoView {
                         set_email.set(val.clone());
                         match email_validator.validate(&val) {
                             Ok(_) => set_email_error.set(String::new()),
-                            Err(msg) => set_email_error.set(msg),
+                            Err(msg) => set_email_error.set(msg.to_string()),
                         }
                     }
-                    prop:value=email
-                    attr:aria-invalid=move || if !email_error.get().is_empty() { Some("true") } else { None }
-                    attr:aria-describedby=move || if !email_error.get().is_empty() { Some("email-error") } else { None }
                 />
-                <Show when=move || !email_error.get().is_empty() fallback=|| ()>
-                    <p id="email-error" role="alert" class="text-red-600 text-sm mt-1">{email_error}</p>
-                </Show>
+                <FormError error=email_error />
             </div>
         </div>
     }
