@@ -4,5 +4,6 @@ resolver = "3"
 members = [
     "validator",
     "validator-backend",
-    "validator-leptos"
+    "validator-leptos",
+    "validator-derive"
 ]

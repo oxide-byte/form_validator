@@ -1705,6 +1705,7 @@ version = "0.1.0"
 dependencies = [
  "regex",
  "thiserror 2.0.17",
+ "validator-derive",
 ]
 
 [[package]]
@@ -1712,6 +1713,15 @@ name = "validator-backend"
 version = "0.1.0"
 dependencies = [
  "validator",
+]
+
+[[package]]
+name = "validator-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
