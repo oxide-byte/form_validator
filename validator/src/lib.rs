@@ -1,10 +1,11 @@
-use crate::validators::error::ValidationError;
-use crate::validators::validator::Validator;
-
 pub mod validators;
 pub mod validate;
+pub mod prelude;
+mod engine;
+mod test;
 
-// Re-export the derive macro so consumers can `use validator::Validate;`
+use crate::engine::error::ValidationError;
+use crate::engine::validator::Validator;
 pub use validator_derive::Validate;
 
 pub fn print_check<T, V, FOK, FERR>(v: &V, value: &T, on_ok: FOK, on_err: FERR)

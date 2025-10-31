@@ -1,5 +1,5 @@
-use crate::validators::error::ValidationError;
-use crate::validators::validator::Validator;
+use crate::engine::error::ValidationError;
+use crate::engine::validator::Validator;
 use core::marker::PhantomData;
 
 /// Trait for types that can validate themselves.

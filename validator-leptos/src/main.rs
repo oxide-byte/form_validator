@@ -1,7 +1,8 @@
 use leptos::html::*;
 use leptos::prelude::*;
-use validator::validators::email_validator::Email;
-use validator::validators::validator::Validator;
+
+use validator::prelude::*;
+use validator::validators::Email;
 
 #[component]
 pub fn FormError(error: ReadSignal<String>) -> impl IntoView {

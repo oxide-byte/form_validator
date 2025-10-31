@@ -1,7 +1,9 @@
-use crate::validators::error::ValidationError;
-use crate::validators::validator::Validator;
+use crate::prelude::*;
 
+pub trait NotAllowedCharsValidator: Validator<String> {}
 pub struct NotAllowedChars;
+
+impl Default for NotAllowedChars { fn default() -> Self { NotAllowedChars } }
 
 impl Validator<String> for NotAllowedChars {
     fn validate(&self, value: &String) -> Result<(), ValidationError> {
@@ -12,3 +14,5 @@ impl Validator<String> for NotAllowedChars {
         }
     }
 }
+
+impl NotAllowedCharsValidator for NotAllowedChars {}

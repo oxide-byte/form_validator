@@ -5,4 +5,4 @@ edition = "2024"
 license = "MIT"
 
 [dependencies]
-validator = {path = "../validator"}
+validator = { path = "../validator" }

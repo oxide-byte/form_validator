@@ -1,4 +1,4 @@
-use crate::validators::error::ValidationError;
+use crate::prelude::*;
 
 /// A simple validation trait.
 ///
@@ -7,7 +7,7 @@ use crate::validators::error::ValidationError;
 ///
 /// Example
 /// ```
-/// use validator::validators::validator::Validator;
+/// use validator::prelude::Validator;
 /// use validator::validators::positive_number_validator::Positive;
 ///
 /// let v = Positive;

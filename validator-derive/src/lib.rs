@@ -1,14 +1,14 @@
 use proc_macro::TokenStream;
 use quote::{quote, ToTokens};
-use syn::{parse_macro_input, DeriveInput, Data, Fields, Attribute, Path};
+use syn::{parse_macro_input, Attribute, Data, DeriveInput, Fields, Path};
 
 /// Derive macro for `validator::validate::Validate`.
 ///
 /// Usage:
 /// ```ignore
 /// use validator::Validate;
-/// use validator::validators::email_validator::Email;
-/// use validator::validators::positive_number_validator::Positive;
+/// use validator::validators::Email;
+/// use validator::validators::Positive;
 ///
 /// #[derive(Validate)]
 /// struct User {
@@ -36,7 +36,7 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
                             let stmt = quote! {
                                 {
                                     let v = #vpath;
-                                    if let Err(e) = ::validator::validators::validator::Validator::validate(&v, &self.#fname) {
+                                    if let Err(e) = v.validate(&self.#fname) {
                                         return Err(e);
                                     }
                                 }
@@ -54,7 +54,7 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
                             let stmt = quote! {
                                 {
                                     let v = #vpath;
-                                    if let Err(e) = ::validator::validators::validator::Validator::validate(&v, &self.#index) {
+                                    if let Err(e) = v.validate(&self.#index) {
                                         return Err(e);
                                     }
                                 }
@@ -70,16 +70,16 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
         _ => Vec::new(), // ignore enums/others for POC
     };
 
-    let gen = quote! {
+    let codgen = quote! {
         impl ::validator::validate::Validate for #ident {
-            fn validate(&self) -> Result<(), ::validator::validators::error::ValidationError> {
+            fn validate(&self) -> Result<(), ::validator::prelude::ValidationError> {
                 #(#validate_stmts)*
                 Ok(())
             }
         }
     };
 
-    gen.into()
+    codgen.into()
 }
 
 fn find_validator_path(attrs: &[Attribute]) -> Option<proc_macro2::TokenStream> {

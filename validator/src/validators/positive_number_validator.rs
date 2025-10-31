@@ -1,5 +1,4 @@
-use crate::validators::error::ValidationError;
-use crate::validators::validator::Validator;
+use crate::prelude::*;
 
 pub trait PositiveNumberValidator: Validator<i32> {}
 pub struct Positive;

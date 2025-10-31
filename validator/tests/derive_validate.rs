@@ -1,6 +1,6 @@
+use validator::prelude::*;
 use validator::validators::email_validator::Email;
 use validator::validators::positive_number_validator::Positive;
-use validator::validators::error::ValidationError;
 
 #[derive(validator::Validate)]
 struct User {

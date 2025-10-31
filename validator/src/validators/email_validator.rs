@@ -1,6 +1,5 @@
+use crate::prelude::*;
 use regex::Regex;
-use crate::validators::error::ValidationError;
-use crate::validators::validator::Validator;
 
 pub trait EmailValidator: Validator<String> {}
 
