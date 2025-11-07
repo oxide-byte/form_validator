@@ -1,4 +1,6 @@
+use validator::prelude::Validator;
 use validator::print_check;
+use validator::validate::Validate as ValidateTrait;
 use validator::validators::email_validator::Email;
 use validator::validators::not_allowed_chars::NotAllowedChars;
 use validator::validators::positive_number_validator::Positive;
@@ -41,5 +43,33 @@ fn main() {
             |v| println!("'{}' passed not-allowed-chars check", v),
             |v, e| println!("'{}' failed not-allowed-chars check: {}", v, e),
         );
+    }
+    #[derive(validator::Validate)]
+    struct User {
+        #[validate(Email)]
+        email: String,
+        #[validate(Positive)]
+        age: i32,
+        display_name: String,
+    }
+
+    let good = User {
+        email: "jane.doe@example.com".into(),
+        age: 30,
+        display_name: "Jane".into(),
+    };
+    match good.validate() {
+        Ok(()) => println!("User(good) is valid"),
+        Err(e) => println!("User(good) is invalid: {}", e),
+    }
+
+    let bad = User {
+        email: "not-an-email".into(),
+        age: 0,
+        display_name: "JD".into(),
+    };
+    match bad.validate() {
+        Ok(()) => println!("User(bad) is valid"),
+        Err(e) => println!("User(bad) is invalid: {}", e),
     }
 }

@@ -1,5 +1,5 @@
 use proc_macro::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 use syn::{parse_macro_input, Attribute, Data, DeriveInput, Fields, Path};
 
 /// Derive macro for `validator::validate::Validate`.
@@ -24,6 +24,8 @@ use syn::{parse_macro_input, Attribute, Data, DeriveInput, Fields, Path};
 pub fn derive_validate(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let ident = input.ident;
+    let generics = input.generics;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     let validate_stmts = match input.data {
         Data::Struct(ds) => {
@@ -70,15 +72,44 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
         _ => Vec::new(), // ignore enums/others for POC
     };
 
+    let guard_mod = format_ident!("__validate_guard_{}", ident);
+
     let codgen = quote! {
-        impl ::validator::validate::Validate for #ident {
+        #[allow(non_snake_case, non_camel_case_types, unused_qualifications)]
+        mod #guard_mod {
+            use std::cell::Cell;
+            thread_local! { static DEPTH: Cell<usize> = Cell::new(0); }
+            #[inline]
+            pub fn enter() -> bool {
+                DEPTH.with(|d| {
+                    let n = d.get();
+                    if n == 0 { d.set(1); true } else { false }
+                })
+            }
+            #[inline]
+            pub fn exit() {
+                DEPTH.with(|d| d.set(d.get().saturating_sub(1)))
+            }
+        }
+
+        impl #impl_generics ::validator::validate::Validate for #ident #ty_generics #where_clause {
             fn validate(&self) -> Result<(), ::validator::prelude::ValidationError> {
-                #(#validate_stmts)*
-                Ok(())
+                if #guard_mod::enter() {
+                    let __res: Result<(), ::validator::prelude::ValidationError> = (|| {
+                        #(#validate_stmts)*
+                        Ok(())
+                    })();
+                    #guard_mod::exit();
+                    __res
+                } else {
+                    // Re-entrant call detected; short-circuit to avoid infinite recursion
+                    Ok(())
+                }
             }
         }
     };
-
+    // For Debug purpose:
+    // eprintln!("{}", codgen.to_string());
     codgen.into()
 }
 

@@ -48,9 +48,7 @@ cargo expand --lib
 cargo expand --tests
 ```
 
-
 ## Next steps
 
 * Not only showing first error, but collect in a HashMap ?
 * Not only add one validator, but an array of validators ?
-* Do we have an infinity loop?
