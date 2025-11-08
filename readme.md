@@ -52,3 +52,4 @@ cargo expand --tests
 
 * Not only showing first error, but collect in a HashMap ?
 * Not only add one validator, but an array of validators ?
+* Make parse_validator_spec MaxLength Generic ?

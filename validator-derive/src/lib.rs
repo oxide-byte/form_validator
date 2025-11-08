@@ -116,6 +116,10 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
 fn find_validator_path(attrs: &[Attribute]) -> Option<proc_macro2::TokenStream> {
     for attr in attrs {
         if attr.path().is_ident("validate") {
+            if let Ok(ts) = parse_validator_spec(attr) {
+                return Some(ts);
+            }
+
             let mut found: Option<proc_macro2::TokenStream> = None;
             let _ = attr.parse_nested_meta(|meta| {
                 let p = meta.path;
@@ -135,4 +139,35 @@ fn path_to_expr_tokens(p: &Path) -> proc_macro2::TokenStream {
     // If the validator is not a unit struct, users can wrap via `With<V, T>`.
     let path_tokens = p.to_token_stream();
     quote! { #path_tokens }
+}
+fn parse_validator_spec(attr: &Attribute) -> Result<proc_macro2::TokenStream, ()> {
+    // Get the raw token stream inside the attribute parentheses
+    let ts = attr.meta.require_list().map_err(|_| ())?.tokens.clone();
+    let s = ts.to_string();
+
+    // Extract the name before the first '('
+    let open = s.find('(').ok_or(())?;
+    let close = s.rfind(')').ok_or(())?;
+    if close <= open { return Err(()); }
+    let name = s[..open].trim();
+    let inner = s[open + 1..close].trim();
+
+    match name {
+        "MaxLength" => {
+            let limit: u32 = inner.parse().map_err(|_| ())?;
+            let expr = quote! { ::validator::validators::max_length::MaxLength::new(#limit) };
+            Ok(expr)
+        }
+        "MinLength" => {
+            let limit: u32 = inner.parse().map_err(|_| ())?;
+            let expr = quote! { ::validator::validators::min_length::MinLength::new(#limit) };
+            Ok(expr)
+        }
+        "NotAllowedChars" => {
+            let inner_tokens: proc_macro2::TokenStream = inner.parse().map_err(|_| ())?;
+            let expr = quote! { ::validator::validators::not_allowed_chars::NotAllowedChars::new(#inner_tokens) };
+            Ok(expr)
+        }
+        _ => Err(()),
+    }
 }

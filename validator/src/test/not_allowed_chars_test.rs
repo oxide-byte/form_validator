@@ -1,16 +1,16 @@
 #[cfg(test)]
 use crate::prelude::*;
-use crate::validators::not_allowed_chars::NotAllowedChars;
+use crate::validators::NotAllowedChars;
 
 #[test]
 fn not_allowed_chars_validator_empty_string() {
-    let v = NotAllowedChars;
+    let v = NotAllowedChars::new(vec!["Z".to_string()]);
     assert!(v.validate(&"".to_string()).is_ok(), "Empty string should be valid");
 }
 
 #[test]
 fn not_allowed_chars_validator_checks() {
-    let v = NotAllowedChars;
+    let v = NotAllowedChars::new(vec!["Z".to_string()]);
 
     // Should be ok (no 'Z')
     assert!(
@@ -39,5 +39,14 @@ fn not_allowed_chars_validator_checks() {
         v.validate(&"ZTeam@example.com".to_string()),
         Err(ValidationError::NotAllowedChars("Z".to_string())),
         "'ZTeam@example.com' should fail not-allowed-chars check"
+    );
+
+    let v = NotAllowedChars::new(vec!["P".to_string()]);
+
+    // Should fail (contains 'P')
+    assert_eq!(
+        v.validate(&"Player1".to_string()),
+        Err(ValidationError::NotAllowedChars("P".to_string())),
+        "'Player1' should fail not-allowed-chars check"
     );
 }

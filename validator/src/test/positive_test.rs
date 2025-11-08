@@ -1,6 +1,6 @@
 #[cfg(test)]
 use crate::prelude::*;
-use crate::validators::positive_number_validator::Positive;
+use crate::validators::Positive;
 
 #[test]
 fn positive_validator_checks_numbers() {

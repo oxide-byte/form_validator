@@ -18,7 +18,7 @@ fn main() {
     }
 
     let email = Email;
-    let not_allowed_chars = NotAllowedChars;
+    let not_allowed_chars = NotAllowedChars::new(vec!["Z".to_string()]);
 
     let email_samples: Vec<String> = vec![
         "john@example.com".to_string(),
