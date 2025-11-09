@@ -33,17 +33,20 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
                 Fields::Named(fields_named) => {
                     let mut stmts = Vec::new();
                     for field in fields_named.named.iter() {
-                        if let Some(vpath) = find_validator_path(&field.attrs) {
+                        let vpaths = find_validator_paths(&field.attrs);
+                        if !vpaths.is_empty() {
                             let fname = field.ident.as_ref().unwrap();
-                            let stmt = quote! {
-                                {
-                                    let v = #vpath;
-                                    if let Err(e) = v.validate(&self.#fname) {
-                                        return Err(e);
+                            for vpath in vpaths {
+                                let stmt = quote! {
+                                    {
+                                        let v = #vpath;
+                                        if let Err(e) = v.validate(&self.#fname) {
+                                            return Err(e);
+                                        }
                                     }
-                                }
-                            };
-                            stmts.push(stmt);
+                                };
+                                stmts.push(stmt);
+                            }
                         }
                     }
                     stmts
@@ -51,17 +54,20 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
                 Fields::Unnamed(fields_unnamed) => {
                     let mut stmts = Vec::new();
                     for (idx, field) in fields_unnamed.unnamed.iter().enumerate() {
-                        if let Some(vpath) = find_validator_path(&field.attrs) {
+                        let vpaths = find_validator_paths(&field.attrs);
+                        if !vpaths.is_empty() {
                             let index = syn::Index::from(idx);
-                            let stmt = quote! {
-                                {
-                                    let v = #vpath;
-                                    if let Err(e) = v.validate(&self.#index) {
-                                        return Err(e);
+                            for vpath in vpaths {
+                                let stmt = quote! {
+                                    {
+                                        let v = #vpath;
+                                        if let Err(e) = v.validate(&self.#index) {
+                                            return Err(e);
+                                        }
                                     }
-                                }
-                            };
-                            stmts.push(stmt);
+                                };
+                                stmts.push(stmt);
+                            }
                         }
                     }
                     stmts
@@ -111,6 +117,83 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
     // For Debug purpose:
     // eprintln!("{}", codgen.to_string());
     codgen.into()
+}
+
+fn find_validator_paths(attrs: &[Attribute]) -> Vec<proc_macro2::TokenStream> {
+    let mut out = Vec::new();
+    for attr in attrs {
+        if !attr.path().is_ident("validate") { continue; }
+        if let Ok(list) = attr.meta.require_list() {
+            let s = list.tokens.to_string();
+            // Split by top-level commas
+            let mut parts: Vec<String> = Vec::new();
+            let mut buf = String::new();
+            let mut depth = 0i32;
+            for ch in s.chars() {
+                match ch {
+                    '(' => { depth += 1; buf.push(ch); }
+                    ')' => { depth -= 1; buf.push(ch); }
+                    ',' if depth == 0 => {
+                        if !buf.trim().is_empty() { parts.push(buf.trim().to_string()); }
+                        buf.clear();
+                    }
+                    _ => buf.push(ch),
+                }
+            }
+            if !buf.trim().is_empty() { parts.push(buf.trim().to_string()); }
+
+            for part in parts {
+                let part_trim = part.trim();
+                if part_trim.is_empty() { continue; }
+                if let Some(open) = part_trim.find('(') {
+                    let close = part_trim.rfind(')').unwrap_or(part_trim.len()-1);
+                    let name = part_trim[..open].trim();
+                    let inner = if close > open { part_trim[open+1..close].trim() } else { "" };
+                    match name {
+                        "MaxLength" => {
+                            if let Ok(limit) = inner.parse::<u32>() {
+                                out.push(quote! { ::validator::validators::max_length::MaxLength::new(#limit) });
+                            }
+                        }
+                        "MinLength" => {
+                            if let Ok(limit) = inner.parse::<u32>() {
+                                out.push(quote! { ::validator::validators::min_length::MinLength::new(#limit) });
+                            }
+                        }
+                        "NotAllowedChars" => {
+                            let inner_tokens: proc_macro2::TokenStream = inner.parse().unwrap_or_else(|_| proc_macro2::TokenStream::new());
+                            out.push(quote! { ::validator::validators::not_allowed_chars::NotAllowedChars::new(#inner_tokens) });
+                        }
+                        _ => {
+                            let p_tokens: proc_macro2::TokenStream = name.parse().unwrap_or_else(|_| proc_macro2::TokenStream::new());
+                            let args_tokens: proc_macro2::TokenStream = inner.parse().unwrap_or_else(|_| proc_macro2::TokenStream::new());
+                            out.push(quote! { #p_tokens ( #args_tokens ) });
+                        }
+                    }
+                } else {
+                    // Unit-like without args (e.g., Email)
+                    if let Ok(p_tokens) = syn::parse_str::<Path>(part_trim) {
+                        out.push(path_to_expr_tokens(&p_tokens));
+                    }
+                }
+            }
+            continue;
+        }
+        // Fallbacks for older/simple forms
+        if let Ok(ts) = parse_validator_spec(attr) {
+            out.push(ts);
+            continue;
+        }
+        // Single simple meta without parentheses
+        let mut found: Option<proc_macro2::TokenStream> = None;
+        let _ = attr.parse_nested_meta(|meta| {
+            let p = meta.path;
+            found = Some(path_to_expr_tokens(&p));
+            Ok(())
+        });
+        if let Some(ts) = found { out.push(ts); }
+    }
+    out
 }
 
 fn find_validator_path(attrs: &[Attribute]) -> Option<proc_macro2::TokenStream> {
