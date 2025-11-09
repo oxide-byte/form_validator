@@ -124,133 +124,30 @@ fn find_validator_paths(attrs: &[Attribute]) -> Vec<proc_macro2::TokenStream> {
     for attr in attrs {
         if !attr.path().is_ident("validate") { continue; }
         if let Ok(list) = attr.meta.require_list() {
-            let s = list.tokens.to_string();
-            // Split by top-level commas
-            let mut parts: Vec<String> = Vec::new();
-            let mut buf = String::new();
-            let mut depth = 0i32;
-            for ch in s.chars() {
-                match ch {
-                    '(' => { depth += 1; buf.push(ch); }
-                    ')' => { depth -= 1; buf.push(ch); }
-                    ',' if depth == 0 => {
-                        if !buf.trim().is_empty() { parts.push(buf.trim().to_string()); }
-                        buf.clear();
-                    }
-                    _ => buf.push(ch),
-                }
-            }
-            if !buf.trim().is_empty() { parts.push(buf.trim().to_string()); }
-
-            for part in parts {
-                let part_trim = part.trim();
-                if part_trim.is_empty() { continue; }
-                if let Some(open) = part_trim.find('(') {
-                    let close = part_trim.rfind(')').unwrap_or(part_trim.len()-1);
-                    let name = part_trim[..open].trim();
-                    let inner = if close > open { part_trim[open+1..close].trim() } else { "" };
-                    match name {
-                        "MaxLength" => {
-                            if let Ok(limit) = inner.parse::<u32>() {
-                                out.push(quote! { ::validator::validators::max_length::MaxLength::new(#limit) });
-                            }
-                        }
-                        "MinLength" => {
-                            if let Ok(limit) = inner.parse::<u32>() {
-                                out.push(quote! { ::validator::validators::min_length::MinLength::new(#limit) });
-                            }
-                        }
-                        "NotAllowedChars" => {
-                            let inner_tokens: proc_macro2::TokenStream = inner.parse().unwrap_or_else(|_| proc_macro2::TokenStream::new());
-                            out.push(quote! { ::validator::validators::not_allowed_chars::NotAllowedChars::new(#inner_tokens) });
-                        }
-                        _ => {
-                            let p_tokens: proc_macro2::TokenStream = name.parse().unwrap_or_else(|_| proc_macro2::TokenStream::new());
-                            let args_tokens: proc_macro2::TokenStream = inner.parse().unwrap_or_else(|_| proc_macro2::TokenStream::new());
-                            out.push(quote! { #p_tokens ( #args_tokens ) });
-                        }
-                    }
+            // Use syn's nested meta parser to handle items robustly (no hardcoded names)
+            let _ = list.parse_nested_meta(|meta| {
+                let p: Path = meta.path;
+                // If the item has parentheses, capture the inner tokens and emit `path(inner)`
+                if meta.input.peek(syn::token::Paren) {
+                    let content;
+                    let _paren = syn::parenthesized!(content in meta.input);
+                    let args_tokens: proc_macro2::TokenStream = content.parse()?;
+                    out.push(quote! { #p :: new ( #args_tokens ) });
                 } else {
                     // Unit-like without args (e.g., Email)
-                    if let Ok(p_tokens) = syn::parse_str::<Path>(part_trim) {
-                        out.push(path_to_expr_tokens(&p_tokens));
-                    }
+                    out.push(path_to_expr_tokens(&p));
                 }
-            }
-            continue;
+                Ok(())
+            });
         }
-        // Fallbacks for older/simple forms
-        if let Ok(ts) = parse_validator_spec(attr) {
-            out.push(ts);
-            continue;
-        }
-        // Single simple meta without parentheses
-        let mut found: Option<proc_macro2::TokenStream> = None;
-        let _ = attr.parse_nested_meta(|meta| {
-            let p = meta.path;
-            found = Some(path_to_expr_tokens(&p));
-            Ok(())
-        });
-        if let Some(ts) = found { out.push(ts); }
     }
     out
 }
 
-fn find_validator_path(attrs: &[Attribute]) -> Option<proc_macro2::TokenStream> {
-    for attr in attrs {
-        if attr.path().is_ident("validate") {
-            if let Ok(ts) = parse_validator_spec(attr) {
-                return Some(ts);
-            }
-
-            let mut found: Option<proc_macro2::TokenStream> = None;
-            let _ = attr.parse_nested_meta(|meta| {
-                let p = meta.path;
-                found = Some(path_to_expr_tokens(&p));
-                Ok(())
-            });
-            if found.is_some() {
-                return found;
-            }
-        }
-    }
-    None
-}
 
 fn path_to_expr_tokens(p: &Path) -> proc_macro2::TokenStream {
     // Generate expression to create an instance for a unit struct path: e.g., Email
     // If the validator is not a unit struct, users can wrap via `With<V, T>`.
     let path_tokens = p.to_token_stream();
     quote! { #path_tokens }
-}
-fn parse_validator_spec(attr: &Attribute) -> Result<proc_macro2::TokenStream, ()> {
-    // Get the raw token stream inside the attribute parentheses
-    let ts = attr.meta.require_list().map_err(|_| ())?.tokens.clone();
-    let s = ts.to_string();
-
-    // Extract the name before the first '('
-    let open = s.find('(').ok_or(())?;
-    let close = s.rfind(')').ok_or(())?;
-    if close <= open { return Err(()); }
-    let name = s[..open].trim();
-    let inner = s[open + 1..close].trim();
-
-    match name {
-        "MaxLength" => {
-            let limit: u32 = inner.parse().map_err(|_| ())?;
-            let expr = quote! { ::validator::validators::max_length::MaxLength::new(#limit) };
-            Ok(expr)
-        }
-        "MinLength" => {
-            let limit: u32 = inner.parse().map_err(|_| ())?;
-            let expr = quote! { ::validator::validators::min_length::MinLength::new(#limit) };
-            Ok(expr)
-        }
-        "NotAllowedChars" => {
-            let inner_tokens: proc_macro2::TokenStream = inner.parse().map_err(|_| ())?;
-            let expr = quote! { ::validator::validators::not_allowed_chars::NotAllowedChars::new(#inner_tokens) };
-            Ok(expr)
-        }
-        _ => Err(()),
-    }
 }

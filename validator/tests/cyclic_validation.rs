@@ -44,7 +44,6 @@ fn validate_bad_members() {
     assert!(root.validate().is_ok());
 }
 
-
 #[test]
 fn validate_cyclic_good_members() {
     let mut root = User {
