@@ -4,6 +4,14 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 
+[features]
+email = []
+positive = []
+max_length = []
+min_length = []
+not_allowed_chars = []
+default = ["email", "positive", "max_length", "min_length", "not_allowed_chars"]
+
 [dependencies]
 regex = "1.12.2"
 validator-derive = { path = "../validator-derive" }

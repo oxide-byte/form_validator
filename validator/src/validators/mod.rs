@@ -1,11 +1,21 @@
+#[cfg(feature = "email")]
 pub mod email_validator;
+#[cfg(feature = "not_allowed_chars")]
 pub mod not_allowed_chars;
+#[cfg(feature = "positive")]
 pub mod positive_number_validator;
+#[cfg(feature = "max_length")]
 pub mod max_length;
+#[cfg(feature = "min_length")]
 pub mod min_length;
 
+#[cfg(feature = "email")]
 pub use email_validator::Email;
+#[cfg(feature = "max_length")]
 pub use max_length::MaxLength;
+#[cfg(feature = "min_length")]
 pub use min_length::MinLength;
+#[cfg(feature = "not_allowed_chars")]
 pub use not_allowed_chars::NotAllowedChars;
+#[cfg(feature = "positive")]
 pub use positive_number_validator::Positive;
