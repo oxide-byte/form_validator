@@ -4,7 +4,7 @@ use crate::validators::Email;
 
 #[test]
 fn email_validator_valid_and_invalid_samples() {
-    let email = Email;
+    let email = Email::default();
 
     // Valid emails
     assert!(
@@ -27,26 +27,17 @@ fn email_validator_valid_and_invalid_samples() {
     );
 
     // Invalid emails
-    assert_eq!(
-        email.validate(&"invalid@".to_string()),
-        Err(ValidationError::InvalidEmail),
-        "invalid@ should be invalid"
-    );
-    assert_eq!(
-        email.validate(&"no-at-symbol".to_string()),
-        Err(ValidationError::InvalidEmail),
-        "no-at-symbol should be invalid"
-    );
-    assert_eq!(
-        email.validate(&"spaces not allowed@example.com".to_string()),
-        Err(ValidationError::InvalidEmail),
-        "spaces not allowed@example.com should be invalid"
-    );
+    let err = email.validate(&"invalid@".to_string()).unwrap_err();
+    assert_eq!(err.code, "email");
+    let err = email.validate(&"no-at-symbol".to_string()).unwrap_err();
+    assert_eq!(err.code, "email");
+    let e = email.validate(&"spaces not allowed@example.com".to_string()).unwrap_err();
+    assert_eq!(e.code, "email");
 }
 
 #[test]
 fn email_validator_more_samples() {
-    let email = Email;
+    let email = Email::default();
 
     // Valid samples
     assert!(
@@ -63,24 +54,12 @@ fn email_validator_more_samples() {
     );
 
     // Invalid samples
-    assert_eq!(
-        email.validate(&"Abc.example.com".to_string()),
-        Err(ValidationError::InvalidEmail),
-        "Abc.example.com should be an invalid email"
-    );
-    assert_eq!(
-        email.validate(&"A@b@c@example.com".to_string()),
-        Err(ValidationError::InvalidEmail),
-        "A@b@c@example.com should be an invalid email"
-    );
-    assert_eq!(
-        email.validate(&" leadingwhitespace@example.com".to_string()),
-        Err(ValidationError::InvalidEmail),
-        " leadingwhitespace@example.com should be an invalid email"
-    );
-    assert_eq!(
-        email.validate(&"trailingwhitespace@example.com ".to_string()),
-        Err(ValidationError::InvalidEmail),
-        "trailingwhitespace@example.com  should be an invalid email"
-    );
+    let e = email.validate(&"Abc.example.com".to_string()).unwrap_err();
+    assert_eq!(e.code, "email");
+    let e = email.validate(&"A@b@c@example.com".to_string()).unwrap_err();
+    assert_eq!(e.code, "email");
+    let e = email.validate(&" leadingwhitespace@example.com".to_string()).unwrap_err();
+    assert_eq!(e.code, "email");
+    let e = email.validate(&"trailingwhitespace@example.com ".to_string()).unwrap_err();
+    assert_eq!(e.code, "email");
 }

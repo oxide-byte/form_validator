@@ -10,7 +10,7 @@ use crate::prelude::*;
 /// use validator::prelude::Validator;
 /// use validator::validators::positive_number_validator::Positive;
 ///
-/// let v = Positive;
+/// let v = Positive::default();
 /// assert!(v.validate(&10).is_ok());
 /// assert!(v.validate(&0).is_err());
 /// ```

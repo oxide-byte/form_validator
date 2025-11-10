@@ -1,17 +1,28 @@
-use thiserror::Error;
+use std::borrow::Cow;
+use std::collections::BTreeMap;
 
-#[derive(Error, Debug, PartialEq)]
-pub enum ValidationError {
-    #[error("Invalid email format")]
-    InvalidEmail,
-    #[error("Value must be a positive number")]
-    MustBePositive,
-    #[error("Value contains not allowed string")]
-    NotAllowedChars(String),
-    #[error("String to long")]
-    MaxLength(u32),
-    #[error("String to short")]
-    MinLength(u32),
-    #[error("Value is not valid")]
-    NotValid,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidationError {
+    pub code: Cow<'static, str>,
+    pub message: Cow<'static, str>,
+    pub params: BTreeMap<Cow<'static, str>, Cow<'static, str>>,
 }
+
+impl ValidationError {
+    pub fn new(code: impl Into<Cow<'static, str>>, message: impl Into<Cow<'static, str>>) -> Self {
+        Self { code: code.into(), message: message.into(), params: BTreeMap::new() }
+    }
+
+    pub fn with_param(mut self, key: impl Into<Cow<'static, str>>, value: impl Into<Cow<'static, str>>) -> Self {
+        self.params.insert(key.into(), value.into());
+        self
+    }
+}
+
+impl core::fmt::Display for ValidationError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+impl std::error::Error for ValidationError {}

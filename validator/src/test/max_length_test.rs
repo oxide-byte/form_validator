@@ -9,16 +9,18 @@ fn validate_max_length() {
         v.validate(&"0123456789".to_string()).is_ok(),
         "Length of 10 is ok"
     );
-    assert_eq!(
-        v.validate(&"0123456789123".to_string()),
-        Err(ValidationError::MaxLength(10)),
-        "Length of 13 is not ok"
-    );
+    let err = v.validate(&"0123456789123".to_string()).unwrap_err();
+    assert_eq!(err.code, "max_length");
+    assert_eq!(err.params.get("limit").map(|s| s.as_ref()), Some("10"));
+    assert_eq!(err.params.get("len").map(|s| s.as_ref()), Some("13"));
 }
 
 #[test]
 fn validate_variable_max_length() {
     let v = MaxLength::new(5);
     assert!(v.validate(&"12345".to_string()).is_ok());
-    assert_eq!(v.validate(&"123456".to_string()), Err(ValidationError::MaxLength(5)));
+    let err = v.validate(&"123456".to_string()).unwrap_err();
+    assert_eq!(err.code, "max_length");
+    assert_eq!(err.params.get("limit").map(|s| s.as_ref()), Some("5"));
+    assert_eq!(err.params.get("len").map(|s| s.as_ref()), Some("6"));
 }

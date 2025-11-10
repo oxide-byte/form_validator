@@ -144,10 +144,7 @@ fn find_validator_paths(attrs: &[Attribute]) -> Vec<proc_macro2::TokenStream> {
     out
 }
 
-
 fn path_to_expr_tokens(p: &Path) -> proc_macro2::TokenStream {
-    // Generate expression to create an instance for a unit struct path: e.g., Email
-    // If the validator is not a unit struct, users can wrap via `With<V, T>`.
     let path_tokens = p.to_token_stream();
-    quote! { #path_tokens }
+    quote! { #path_tokens :: default() }
 }

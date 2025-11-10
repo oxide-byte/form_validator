@@ -35,18 +35,14 @@ fn not_allowed_chars_validator_checks() {
     );
 
     // Should fail (contains 'Z')
-    assert_eq!(
-        v.validate(&"ZTeam@example.com".to_string()),
-        Err(ValidationError::NotAllowedChars("Z".to_string())),
-        "'ZTeam@example.com' should fail not-allowed-chars check"
-    );
+    let err = v.validate(&"ZTeam@example.com".to_string()).unwrap_err();
+    assert_eq!(err.code, "not_allowed_chars");
+    assert_eq!(err.params.get("hit").map(|s| s.as_ref()), Some("Z"));
 
     let v = NotAllowedChars::new(vec!["P".to_string()]);
 
     // Should fail (contains 'P')
-    assert_eq!(
-        v.validate(&"Player1".to_string()),
-        Err(ValidationError::NotAllowedChars("P".to_string())),
-        "'Player1' should fail not-allowed-chars check"
-    );
+    let err = v.validate(&"Player1".to_string()).unwrap_err();
+    assert_eq!(err.code, "not_allowed_chars");
+    assert_eq!(err.params.get("hit").map(|s| s.as_ref()), Some("P"));
 }

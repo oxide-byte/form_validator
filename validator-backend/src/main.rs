@@ -6,7 +6,7 @@ use validator::validators::not_allowed_chars::NotAllowedChars;
 use validator::validators::positive_number_validator::Positive;
 
 fn main() {
-    let positive = Positive;
+    let positive = Positive::default();
     let number_samples = [5, 0, -3, 42];
     for n in number_samples {
         print_check(
@@ -17,7 +17,7 @@ fn main() {
         );
     }
 
-    let email = Email;
+    let email = Email::default();
     let not_allowed_chars = NotAllowedChars::new(vec!["Z".to_string()]);
 
     let email_samples: Vec<String> = vec![

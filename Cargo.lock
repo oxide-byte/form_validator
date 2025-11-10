@@ -1705,7 +1705,6 @@ version = "0.1.0"
 dependencies = [
  "once_cell",
  "regex",
- "thiserror 2.0.17",
  "validator-derive",
 ]
 

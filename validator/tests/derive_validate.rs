@@ -40,10 +40,8 @@ fn user_invalid_email_first() {
         role: "Admin".to_string(),
         note: "n/a".to_string(),
     };
-    assert_eq!(
-        validator::validate::Validate::validate(&u),
-        Err(ValidationError::InvalidEmail)
-    );
+    let err = validator::validate::Validate::validate(&u).unwrap_err();
+    assert_eq!(err.code, "email");
 }
 
 #[test]
@@ -56,10 +54,8 @@ fn user_invalid_age() {
         role: "Admin".to_string(),
         note: "n/a".to_string(),
     };
-    assert_eq!(
-        validator::validate::Validate::validate(&u),
-        Err(ValidationError::MustBePositive)
-    );
+    let err = validator::validate::Validate::validate(&u).unwrap_err();
+    assert_eq!(err.code, "positive");
 }
 
 #[test]
@@ -72,10 +68,8 @@ fn user_invalid_length() {
         role: "Admin".to_string(),
         note: "n/a".to_string(),
     };
-    assert_eq!(
-        validator::validate::Validate::validate(&u),
-        Err(ValidationError::MaxLength(10))
-    );
+    let err = validator::validate::Validate::validate(&u).unwrap_err();
+    assert_eq!(err.code, "max_length");
 }
 
 #[test]
@@ -88,10 +82,8 @@ fn address_invalid_length() {
         role: "Admin".to_string(),
         note: "n/a".to_string(),
     };
-    assert_eq!(
-        validator::validate::Validate::validate(&u),
-        Err(ValidationError::MinLength(10))
-    );
+    let err = validator::validate::Validate::validate(&u).unwrap_err();
+    assert_eq!(err.code, "min_length");
 }
 
 #[test]
@@ -104,8 +96,6 @@ fn user_not_allowed_chars() {
         role: "CHEF".to_string(),
         note: "n/a".to_string(),
     };
-    assert_eq!(
-        validator::validate::Validate::validate(&u),
-        Err(ValidationError::NotAllowedChars("CHEF".to_string()))
-    );
+    let err = validator::validate::Validate::validate(&u).unwrap_err();
+    assert_eq!(err.code, "not_allowed_chars");
 }

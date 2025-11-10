@@ -5,10 +5,10 @@ use validator::prelude::*;
 use validator::validators::Email;
 
 #[component]
-pub fn FormError(error: ReadSignal<String>) -> impl IntoView {
+pub fn FormError(error: ReadSignal<Option<ValidationError>>) -> impl IntoView {
     view! {
-        <Show when=move || !error.get().is_empty() fallback=|| ()>
-            <p role="alert" class="text-red-600 text-sm mt-1">{ error }</p>
+        <Show when=move || error.get().is_some() fallback=|| ()>
+            <p role="alert" class="text-red-600 text-sm mt-1">{ error.get().unwrap().message }</p>
         </Show>
     }
 }
@@ -18,9 +18,9 @@ pub fn SimpleForm() -> impl IntoView {
     let (name, set_name) = signal("Unknown".to_string());
 
     let (_email, set_email) = signal(String::new());
-    let (email_error, set_email_error) = signal(String::new());
+    let (email_error, set_email_error) = signal(None);
 
-    let email_validator = Email;
+    let email_validator = Email::default();
 
     view! {
         <div class="p-4 space-y-4">
@@ -48,8 +48,8 @@ pub fn SimpleForm() -> impl IntoView {
                         let val = ev.target().value();
                         set_email.set(val.clone());
                         match email_validator.validate(&val) {
-                            Ok(_) => set_email_error.set(String::new()),
-                            Err(msg) => set_email_error.set(msg.to_string()),
+                            Ok(_) => set_email_error.set(None),
+                            Err(e) => set_email_error.set(Some(e)),
                         }
                     }
                 />

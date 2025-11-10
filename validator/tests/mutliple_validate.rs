@@ -20,10 +20,8 @@ fn range_min_error() {
     let u = StringRange {
         name: "T".to_string(),
     };
-    assert_eq!(
-        validator::validate::Validate::validate(&u),
-        Err(ValidationError::MinLength(3))
-    );
+    let err = validator::validate::Validate::validate(&u).unwrap_err();
+    assert_eq!(err.code, "min_length");
 }
 
 #[test]
@@ -31,8 +29,6 @@ fn range_max_error() {
     let u = StringRange {
         name: "Test1234567890".to_string(),
     };
-    assert_eq!(
-        validator::validate::Validate::validate(&u),
-        Err(ValidationError::MaxLength(10))
-    );
+    let err = validator::validate::Validate::validate(&u).unwrap_err();
+    assert_eq!(err.code, "max_length");
 }
