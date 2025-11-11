@@ -27,9 +27,9 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
     let generics = input.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    let validate_stmts = match input.data {
+    let validate_stmts = match &input.data {
         Data::Struct(ds) => {
-            match ds.fields {
+            match &ds.fields {
                 Fields::Named(fields_named) => {
                     let mut stmts = Vec::new();
                     for field in fields_named.named.iter() {
@@ -78,6 +78,59 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
         _ => Vec::new(), // ignore enums/others for POC
     };
 
+    let complete_validate_stmts = match &input.data {
+        Data::Struct(ds) => {
+            match &ds.fields {
+                Fields::Named(fields_named) => {
+                    let mut stmts = Vec::new();
+                    for field in fields_named.named.iter() {
+                        let vpaths = find_validator_paths(&field.attrs);
+                        if !vpaths.is_empty() {
+                            let fname = field.ident.as_ref().unwrap();
+                            let key_str = fname.to_string();
+                            for vpath in vpaths {
+                                let stmt = quote! {
+                                    {
+                                        let v = #vpath;
+                                        if let Err(e) = v.validate(&self.#fname) {
+                                            __errors.entry(#key_str.to_string()).or_insert_with(::std::vec::Vec::new).push(e);
+                                        }
+                                    }
+                                };
+                                stmts.push(stmt);
+                            }
+                        }
+                    }
+                    stmts
+                }
+                Fields::Unnamed(fields_unnamed) => {
+                    let mut stmts = Vec::new();
+                    for (idx, field) in fields_unnamed.unnamed.iter().enumerate() {
+                        let vpaths = find_validator_paths(&field.attrs);
+                        if !vpaths.is_empty() {
+                            let index = syn::Index::from(idx);
+                            let key_str = idx.to_string();
+                            for vpath in vpaths {
+                                let stmt = quote! {
+                                    {
+                                        let v = #vpath;
+                                        if let Err(e) = v.validate(&self.#index) {
+                                            __errors.entry(#key_str.to_string()).or_insert_with(::std::vec::Vec::new).push(e);
+                                        }
+                                    }
+                                };
+                                stmts.push(stmt);
+                            }
+                        }
+                    }
+                    stmts
+                }
+                Fields::Unit => Vec::new(),
+            }
+        }
+        _ => Vec::new(), // ignore enums/others for POC
+    };
+
     let guard_mod = format_ident!("__validate_guard_{}", ident);
 
     let codgen = quote! {
@@ -104,6 +157,21 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
                     let __res: Result<(), ::validator::prelude::ValidationError> = (|| {
                         #(#validate_stmts)*
                         Ok(())
+                    })();
+                    #guard_mod::exit();
+                    __res
+                } else {
+                    // Re-entrant call detected; short-circuit to avoid infinite recursion
+                    Ok(())
+                }
+            }
+
+            fn complete_validate(&self) -> Result<(), ::std::collections::HashMap<::std::string::String, ::std::vec::Vec<::validator::prelude::ValidationError>>> {
+                if #guard_mod::enter() {
+                    let __res: Result<(), ::std::collections::HashMap<::std::string::String, ::std::vec::Vec<::validator::prelude::ValidationError>>> = (|| {
+                        let mut __errors: ::std::collections::HashMap<::std::string::String, ::std::vec::Vec<::validator::prelude::ValidationError>> = ::std::collections::HashMap::new();
+                        #(#complete_validate_stmts)*
+                        if __errors.is_empty() { Ok(()) } else { Err(__errors) }
                     })();
                     #guard_mod::exit();
                     __res
