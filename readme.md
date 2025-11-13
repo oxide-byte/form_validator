@@ -13,6 +13,7 @@ Crates in this workspace:
 ## Quick start
 
 - Build and test: `cargo build` and `cargo test`
+- Test async feature: `cargo test -p validator --features async`
 
 ### Basic usage
 ```rust

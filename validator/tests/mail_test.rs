@@ -1,6 +1,5 @@
-#[cfg(test)]
-use crate::prelude::*;
-use crate::validators::Email;
+use validator::prelude::*;
+use validator::validators::Email;
 
 #[test]
 fn email_validator_valid_and_invalid_samples() {

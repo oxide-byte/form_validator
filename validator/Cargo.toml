@@ -10,9 +10,11 @@ positive = []
 max_length = []
 min_length = []
 not_allowed_chars = []
+async = ["dep:futures", "validator-derive/async"]
 default = ["email", "positive", "max_length", "min_length", "not_allowed_chars"]
 
 [dependencies]
-regex = "1.12.2"
+regex = "1.12"
 validator-derive = { path = "../validator-derive" }
-once_cell = "1.21.3"
+once_cell = "1.21"
+futures = { version = "0.3", optional = true }

@@ -1,6 +1,5 @@
-#[cfg(test)]
-use crate::prelude::*;
-use crate::validators::NotAllowedChars;
+use validator::prelude::*;
+use validator::validators::NotAllowedChars;
 
 #[test]
 fn not_allowed_chars_validator_empty_string() {

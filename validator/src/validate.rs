@@ -2,6 +2,12 @@ use crate::engine::error::ValidationError;
 use crate::engine::validator::Validator;
 use core::marker::PhantomData;
 use std::collections::HashMap;
+#[cfg(feature = "async")]
+use std::future::Future;
+#[cfg(feature = "async")]
+use std::pin::Pin;
+#[cfg(feature = "async")]
+use crate::engine::validator::AsyncValidator;
 
 /// Trait for types that can validate themselves.
 ///
@@ -29,6 +35,36 @@ pub trait Validate {
     }
 }
 
+/// Async variant of [`Validate`].
+#[cfg(feature = "async")]
+pub trait ValidateAsync {
+    /// Validate and stop at the first encountered error (async).
+    fn validate_async(&self) -> Pin<Box<dyn Future<Output = Result<(), ValidationError>> + '_>>;
+
+    /// Validate all rules and collect all errors per field (async).
+    fn complete_validate_async(
+        &self,
+    ) -> Pin<
+        Box<
+            dyn Future<
+                Output = Result<(), HashMap<String, Vec<ValidationError>>>,
+            > + '_,
+        >,
+    > {
+        // Default async implementation mirrors the sync fallback.
+        Box::pin(async move {
+            match self.validate_async().await {
+                Ok(()) => Ok(()),
+                Err(e) => {
+                    let mut map: HashMap<String, Vec<ValidationError>> = HashMap::new();
+                    map.insert("value".to_string(), vec![e]);
+                    Err(map)
+                }
+            }
+        })
+    }
+}
+
 /// Adapter that pairs a value `T` with a validator `V` (which implements
 /// `Validator<T>`) and provides a `Validate` implementation.
 ///
@@ -49,5 +85,18 @@ where
         // Delegate to the provided validator type `V`.
         let v = V::default();
         v.validate(&self.0)
+    }
+}
+
+#[cfg(feature = "async")]
+impl<V, T> ValidateAsync for With<V, T>
+where
+    V: AsyncValidator<T> + Default,
+{
+    fn validate_async(&self) -> Pin<Box<dyn Future<Output = Result<(), ValidationError>> + '_>> {
+        Box::pin(async move {
+            let v = V::default();
+            v.validate_async(&self.0).await
+        })
     }
 }

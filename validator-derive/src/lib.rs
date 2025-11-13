@@ -35,6 +35,51 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
 
     let guard_mod = format_ident!("__validate_guard_{}", ident);
 
+    // Prepare optional async impl block depending on this crate's feature.
+    #[cfg(feature = "async")]
+    let async_impl_block = {
+        let async_validate_stmts = build_async_validate_stmts(&input.data);
+        let async_complete_validate_stmts = build_async_complete_validate_stmts(&input.data);
+        quote! {
+            impl #impl_generics ::validator::validate::ValidateAsync for #ident #ty_generics #where_clause {
+                fn validate_async(&self) -> ::std::pin::Pin<::std::boxed::Box<dyn ::core::future::Future<Output = Result<(), ::validator::prelude::ValidationError>> + '_>> {
+                    ::std::boxed::Box::pin(async move {
+                        if #guard_mod::enter() {
+                            let __res: Result<(), ::validator::prelude::ValidationError> = async {
+                                #(#async_validate_stmts)*
+                                Ok(())
+                            }.await;
+                            #guard_mod::exit();
+                            __res
+                        } else {
+                            // Re-entrant call detected; short-circuit to avoid infinite recursion
+                            Ok(())
+                        }
+                    })
+                }
+
+                fn complete_validate_async(&self) -> ::std::pin::Pin<::std::boxed::Box<dyn ::core::future::Future<Output = Result<(), ::std::collections::HashMap<::std::string::String, ::std::vec::Vec<::validator::prelude::ValidationError>>>> + '_>> {
+                    ::std::boxed::Box::pin(async move {
+                        if #guard_mod::enter() {
+                            let __res: Result<(), ::std::collections::HashMap<::std::string::String, ::std::vec::Vec<::validator::prelude::ValidationError>>> = async {
+                                let mut __errors: ::std::collections::HashMap<::std::string::String, ::std::vec::Vec<::validator::prelude::ValidationError>> = ::std::collections::HashMap::new();
+                                #(#async_complete_validate_stmts)*
+                                if __errors.is_empty() { Ok(()) } else { Err(__errors) }
+                            }.await;
+                            #guard_mod::exit();
+                            __res
+                        } else {
+                            // Re-entrant call detected; short-circuit to avoid infinite recursion
+                            Ok(())
+                        }
+                    })
+                }
+            }
+        }
+    };
+    #[cfg(not(feature = "async"))]
+    let async_impl_block = quote! {};
+
     let codgen = quote! {
         #[allow(non_snake_case, non_camel_case_types, unused_qualifications)]
         mod #guard_mod {
@@ -83,6 +128,8 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
                 }
             }
         }
+
+        #async_impl_block
     };
     // For Debug purpose:
     // eprintln!("{}", codgen.to_string());
@@ -108,6 +155,27 @@ fn build_complete_validate_stmts(data: &Data) -> Vec<proc_macro2::TokenStream> {
         .flat_map(|spec| {
             let key = spec.key.expect("key must be present when with_keys=true");
             build_complete_validate_for_accessor(spec.accessor, key, &spec.vpaths)
+        })
+        .collect()
+}
+
+/// Build async short-circuit validate statements for each field annotated with
+/// `#[validate(...)]`. Works similarly to the sync version but awaits each
+/// validator's `validate_async`.
+fn build_async_validate_stmts(data: &Data) -> Vec<proc_macro2::TokenStream> {
+    collect_field_specs(data, /*with_keys=*/ false)
+        .into_iter()
+        .flat_map(|spec| build_async_validate_for_accessor(spec.accessor, &spec.vpaths))
+        .collect()
+}
+
+/// Build async error-collecting validate statements for each annotated field.
+fn build_async_complete_validate_stmts(data: &Data) -> Vec<proc_macro2::TokenStream> {
+    collect_field_specs(data, /*with_keys=*/ true)
+        .into_iter()
+        .flat_map(|spec| {
+            let key = spec.key.expect("key must be present when with_keys=true");
+            build_async_complete_validate_for_accessor(spec.accessor, key, &spec.vpaths)
         })
         .collect()
 }
@@ -230,6 +298,47 @@ fn build_complete_validate_for_accessor(
             {
                 let v = #vpath;
                 if let Err(e) = v.validate(&#accessor) {
+                    __errors.entry(#key.to_string()).or_insert_with(::std::vec::Vec::new).push(e);
+                }
+            }
+        };
+        stmts.push(stmt);
+    }
+    stmts
+}
+
+/// Async counterpart to `build_validate_for_accessor`
+fn build_async_validate_for_accessor(
+    accessor: proc_macro2::TokenStream,
+    vpaths: &[proc_macro2::TokenStream],
+) -> Vec<proc_macro2::TokenStream> {
+    let mut stmts = Vec::new();
+    for vpath in vpaths {
+        let stmt = quote! {
+            {
+                let v = #vpath;
+                if let Err(e) = ::validator::prelude::AsyncValidator::validate_async(&v, &#accessor).await {
+                    return Err(e);
+                }
+            }
+        };
+        stmts.push(stmt);
+    }
+    stmts
+}
+
+/// Async counterpart to `build_complete_validate_for_accessor`
+fn build_async_complete_validate_for_accessor(
+    accessor: proc_macro2::TokenStream,
+    key: String,
+    vpaths: &[proc_macro2::TokenStream],
+) -> Vec<proc_macro2::TokenStream> {
+    let mut stmts = Vec::new();
+    for vpath in vpaths {
+        let stmt = quote! {
+            {
+                let v = #vpath;
+                if let Err(e) = ::validator::prelude::AsyncValidator::validate_async(&v, &#accessor).await {
                     __errors.entry(#key.to_string()).or_insert_with(::std::vec::Vec::new).push(e);
                 }
             }

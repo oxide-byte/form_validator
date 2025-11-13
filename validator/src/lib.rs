@@ -2,11 +2,13 @@ pub mod validators;
 pub mod validate;
 pub mod prelude;
 mod engine;
-mod test;
 
 use crate::engine::error::ValidationError;
 use crate::engine::validator::Validator;
 pub use validator_derive::Validate;
+
+#[cfg(feature = "async")]
+pub use futures;
 
 pub fn print_check<T, V, FOK, FERR>(v: &V, value: &T, on_ok: FOK, on_err: FERR)
 where

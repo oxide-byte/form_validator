@@ -1,6 +1,5 @@
-#[cfg(test)]
-use crate::prelude::*;
-use crate::validators::MaxLength;
+use validator::prelude::*;
+use validator::validators::MaxLength;
 
 #[test]
 fn validate_max_length() {
@@ -11,8 +10,8 @@ fn validate_max_length() {
     );
     let err = v.validate(&"0123456789123".to_string()).unwrap_err();
     assert_eq!(err.code, "max_length");
-    assert_eq!(err.params.get("limit").map(|s| s.as_ref()), Some("10"));
-    assert_eq!(err.params.get("len").map(|s| s.as_ref()), Some("13"));
+    assert_eq!(err.params.get("limit").map(std::borrow::Cow::as_ref), Some("10"));
+    assert_eq!(err.params.get("len").map(std::borrow::Cow::as_ref), Some("13"));
 }
 
 #[test]
@@ -21,6 +20,6 @@ fn validate_variable_max_length() {
     assert!(v.validate(&"12345".to_string()).is_ok());
     let err = v.validate(&"123456".to_string()).unwrap_err();
     assert_eq!(err.code, "max_length");
-    assert_eq!(err.params.get("limit").map(|s| s.as_ref()), Some("5"));
-    assert_eq!(err.params.get("len").map(|s| s.as_ref()), Some("6"));
+    assert_eq!(err.params.get("limit").map(std::borrow::Cow::as_ref), Some("5"));
+    assert_eq!(err.params.get("len").map(std::borrow::Cow::as_ref), Some("6"));
 }

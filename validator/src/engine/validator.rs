@@ -1,4 +1,8 @@
 use crate::prelude::*;
+#[cfg(feature = "async")]
+use core::future::Future;
+#[cfg(feature = "async")]
+use std::pin::Pin;
 
 /// A simple validation trait.
 ///
@@ -17,4 +21,24 @@ use crate::prelude::*;
 pub trait Validator<T> {
     /// Validate the provided `value`.
     fn validate(&self, value: &T) -> Result<(), ValidationError>;
+}
+
+/// An asynchronous validator variant.
+///
+/// By default, any synchronous `Validator<T>` is also an `AsyncValidator<T>`
+/// via a blanket impl that wraps the synchronous call into a ready future.
+#[cfg(feature = "async")]
+pub trait AsyncValidator<T> {
+    /// Asynchronously validate the provided `value`.
+    fn validate_async<'a>(&'a self, value: &'a T) -> Pin<Box<dyn Future<Output = Result<(), ValidationError>> + 'a>>;
+}
+
+#[cfg(feature = "async")]
+impl<V, T> AsyncValidator<T> for V
+where
+    V: Validator<T>,
+{
+    fn validate_async<'a>(&'a self, value: &'a T) -> Pin<Box<dyn Future<Output = Result<(), ValidationError>> + 'a>> {
+        Box::pin(async move { self.validate(value) })
+    }
 }
