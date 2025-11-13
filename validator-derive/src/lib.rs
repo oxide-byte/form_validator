@@ -27,109 +27,11 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
     let generics = input.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    let validate_stmts = match &input.data {
-        Data::Struct(ds) => {
-            match &ds.fields {
-                Fields::Named(fields_named) => {
-                    let mut stmts = Vec::new();
-                    for field in fields_named.named.iter() {
-                        let vpaths = find_validator_paths(&field.attrs);
-                        if !vpaths.is_empty() {
-                            let fname = field.ident.as_ref().unwrap();
-                            for vpath in vpaths {
-                                let stmt = quote! {
-                                    {
-                                        let v = #vpath;
-                                        if let Err(e) = v.validate(&self.#fname) {
-                                            return Err(e);
-                                        }
-                                    }
-                                };
-                                stmts.push(stmt);
-                            }
-                        }
-                    }
-                    stmts
-                }
-                Fields::Unnamed(fields_unnamed) => {
-                    let mut stmts = Vec::new();
-                    for (idx, field) in fields_unnamed.unnamed.iter().enumerate() {
-                        let vpaths = find_validator_paths(&field.attrs);
-                        if !vpaths.is_empty() {
-                            let index = syn::Index::from(idx);
-                            for vpath in vpaths {
-                                let stmt = quote! {
-                                    {
-                                        let v = #vpath;
-                                        if let Err(e) = v.validate(&self.#index) {
-                                            return Err(e);
-                                        }
-                                    }
-                                };
-                                stmts.push(stmt);
-                            }
-                        }
-                    }
-                    stmts
-                }
-                Fields::Unit => Vec::new(),
-            }
-        }
-        _ => Vec::new(), // ignore enums/others for POC
-    };
+    // Generate short-circuit validation from field-level #[validate(...)] annotations
+    let validate_stmts = build_validate_stmts(&input.data);
 
-    let complete_validate_stmts = match &input.data {
-        Data::Struct(ds) => {
-            match &ds.fields {
-                Fields::Named(fields_named) => {
-                    let mut stmts = Vec::new();
-                    for field in fields_named.named.iter() {
-                        let vpaths = find_validator_paths(&field.attrs);
-                        if !vpaths.is_empty() {
-                            let fname = field.ident.as_ref().unwrap();
-                            let key_str = fname.to_string();
-                            for vpath in vpaths {
-                                let stmt = quote! {
-                                    {
-                                        let v = #vpath;
-                                        if let Err(e) = v.validate(&self.#fname) {
-                                            __errors.entry(#key_str.to_string()).or_insert_with(::std::vec::Vec::new).push(e);
-                                        }
-                                    }
-                                };
-                                stmts.push(stmt);
-                            }
-                        }
-                    }
-                    stmts
-                }
-                Fields::Unnamed(fields_unnamed) => {
-                    let mut stmts = Vec::new();
-                    for (idx, field) in fields_unnamed.unnamed.iter().enumerate() {
-                        let vpaths = find_validator_paths(&field.attrs);
-                        if !vpaths.is_empty() {
-                            let index = syn::Index::from(idx);
-                            let key_str = idx.to_string();
-                            for vpath in vpaths {
-                                let stmt = quote! {
-                                    {
-                                        let v = #vpath;
-                                        if let Err(e) = v.validate(&self.#index) {
-                                            __errors.entry(#key_str.to_string()).or_insert_with(::std::vec::Vec::new).push(e);
-                                        }
-                                    }
-                                };
-                                stmts.push(stmt);
-                            }
-                        }
-                    }
-                    stmts
-                }
-                Fields::Unit => Vec::new(),
-            }
-        }
-        _ => Vec::new(), // ignore enums/others for POC
-    };
+    // Generate error-collecting validation from field-level #[validate(...)] annotations
+    let complete_validate_stmts = build_complete_validate_stmts(&input.data);
 
     let guard_mod = format_ident!("__validate_guard_{}", ident);
 
@@ -187,6 +89,80 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
     codgen.into()
 }
 
+/// Build short-circuit validate statements for each field annotated with
+/// `#[validate(...)]`. Works on the inner items of the annotation, turning
+/// each validator item into a validator instance and a `validate(&field)` call.
+fn build_validate_stmts(data: &Data) -> Vec<proc_macro2::TokenStream> {
+    collect_field_specs(data, /*with_keys=*/ false)
+        .into_iter()
+        .flat_map(|spec| build_validate_for_accessor(spec.accessor, &spec.vpaths))
+        .collect()
+}
+
+/// Build error-collecting validate statements for each field annotated with
+/// `#[validate(...)]`. Uses the field name (or tuple index) as the error-map key
+/// and iterates over each validator item inside the annotation.
+fn build_complete_validate_stmts(data: &Data) -> Vec<proc_macro2::TokenStream> {
+    collect_field_specs(data, /*with_keys=*/ true)
+        .into_iter()
+        .flat_map(|spec| {
+            let key = spec.key.expect("key must be present when with_keys=true");
+            build_complete_validate_for_accessor(spec.accessor, key, &spec.vpaths)
+        })
+        .collect()
+}
+
+/// Describes how a single field with a `#[validate(...)]` annotation should be
+/// expanded:
+/// - accessor: `self.field` or `self.N` for tuple structs
+/// - key: optional error-map key (field name or index as string)
+/// - vpaths: validator constructor expressions taken from the items of
+///   the `#[validate(...)]` annotation
+struct FieldSpec {
+    accessor: proc_macro2::TokenStream,
+    key: Option<String>,
+    vpaths: Vec<proc_macro2::TokenStream>,
+}
+
+/// Collect specs for all fields that carry a `#[validate(...)]` annotation.
+/// This looks only at the presence of the annotation on a field and prepares
+/// accessors/keys, delegating the parsing of the items inside `( ... )` to
+/// `find_validator_paths`.
+fn collect_field_specs(data: &Data, with_keys: bool) -> Vec<FieldSpec> {
+    let mut out = Vec::new();
+    match data {
+        Data::Struct(ds) => match &ds.fields {
+            Fields::Named(fields_named) => {
+                for field in fields_named.named.iter() {
+                    let vpaths = find_validator_paths(&field.attrs);
+                    if vpaths.is_empty() { continue; }
+                    let fname = field.ident.as_ref().expect("named field should have ident");
+                    let accessor = quote! { self.#fname };
+                    let key = if with_keys { Some(fname.to_string()) } else { None };
+                    out.push(FieldSpec { accessor, key, vpaths });
+                }
+            }
+            Fields::Unnamed(fields_unnamed) => {
+                for (idx, field) in fields_unnamed.unnamed.iter().enumerate() {
+                    let vpaths = find_validator_paths(&field.attrs);
+                    if vpaths.is_empty() { continue; }
+                    let index = syn::Index::from(idx);
+                    let accessor = quote! { self.#index };
+                    let key = if with_keys { Some(idx.to_string()) } else { None };
+                    out.push(FieldSpec { accessor, key, vpaths });
+                }
+            }
+            Fields::Unit => {}
+        },
+        _ => {}
+    }
+    out
+}
+
+/// Parse the inner items of a `#[validate(...)]` attribute into constructor
+/// expressions for validators. For unit-like items (e.g. `Email`) we emit
+/// `Email::default()`. For items with arguments (e.g. `Length(min = 3)`) we emit
+/// `Length::new(min = 3)`.
 fn find_validator_paths(attrs: &[Attribute]) -> Vec<proc_macro2::TokenStream> {
     let mut out = Vec::new();
     for attr in attrs {
@@ -212,7 +188,53 @@ fn find_validator_paths(attrs: &[Attribute]) -> Vec<proc_macro2::TokenStream> {
     out
 }
 
+/// Helper used for unit-like validator items inside the annotation. Converts a
+/// path like `Email` into `Email::default()`.
 fn path_to_expr_tokens(p: &Path) -> proc_macro2::TokenStream {
     let path_tokens = p.to_token_stream();
     quote! { #path_tokens :: default() }
+}
+
+/// Emit short-circuiting validate statements for each validator item found in
+/// the field's `#[validate(...)]` annotation. On first error, returns `Err`.
+fn build_validate_for_accessor(
+    accessor: proc_macro2::TokenStream,
+    vpaths: &[proc_macro2::TokenStream],
+) -> Vec<proc_macro2::TokenStream> {
+    let mut stmts = Vec::new();
+    for vpath in vpaths {
+        let stmt = quote! {
+            {
+                let v = #vpath;
+                if let Err(e) = v.validate(&#accessor) {
+                    return Err(e);
+                }
+            }
+        };
+        stmts.push(stmt);
+    }
+    stmts
+}
+
+/// Emit error-collecting validate statements for each validator item found in
+/// the field's `#[validate(...)]` annotation. Errors are pushed under the
+/// provided key.
+fn build_complete_validate_for_accessor(
+    accessor: proc_macro2::TokenStream,
+    key: String,
+    vpaths: &[proc_macro2::TokenStream],
+) -> Vec<proc_macro2::TokenStream> {
+    let mut stmts = Vec::new();
+    for vpath in vpaths {
+        let stmt = quote! {
+            {
+                let v = #vpath;
+                if let Err(e) = v.validate(&#accessor) {
+                    __errors.entry(#key.to_string()).or_insert_with(::std::vec::Vec::new).push(e);
+                }
+            }
+        };
+        stmts.push(stmt);
+    }
+    stmts
 }
